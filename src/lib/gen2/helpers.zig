@@ -70,12 +70,43 @@ pub fn prng(rand: *PSRNG) data.PRNG {
         .src = .{
             .seed = if (showdown)
                 rand.newSeed()
-            else
-                .{
-                    rand.range(u8, 0, 256), rand.range(u8, 0, 256), rand.range(u8, 0, 256),
-                    rand.range(u8, 0, 256), rand.range(u8, 0, 256), rand.range(u8, 0, 256),
-                    rand.range(u8, 0, 256), rand.range(u8, 0, 256), rand.range(u8, 0, 256),
-                },
+            else seed: {
+                // GLITCH: The initial RNG seed in Gen II link battles is heavily constrained
+                // https://www.smogon.com/forums/threads/rng-in-rby-link-battles.3746779
+                var seed = [_]u8{ 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+
+                // Bytes in seed can only range from 0-252, not 0-255
+                const max: u8 = 253;
+                // Instructions take multiples of 4 cycles to execute
+                var timer: u16 = 4 * rand.range(u16, 0, 16384);
+                var add: u8 = rand.range(u8, 0, 256);
+                var sub: u8 = rand.range(u8, 0, 256);
+                var carry: u8 = 0;
+                var div: u8 = 0;
+
+                var i: u8 = 0;
+                while (i < seed.len) {
+                    div = @intCast(timer >> 8);
+                    // need to do this to see if a carry would be generated at all
+                    const check_carry: u16 = @as(u16, add) + @as(u16, div) + @as(u16, carry);
+                    add +%= div +% carry;
+                    carry = if (check_carry > 255) 1 else 0;
+                    timer +%= 44;
+                    div = @intCast(timer >> 8);
+                    sub -%= div +% carry;
+
+                    if (sub < max) {
+                        seed[i] = sub;
+                        i += 1;
+                        timer +%= 152;
+                        carry = 1;
+                    } else {
+                        timer +%= 132;
+                        carry = 0;
+                    }
+                }
+                break :seed seed;
+            },
         },
     };
 }
