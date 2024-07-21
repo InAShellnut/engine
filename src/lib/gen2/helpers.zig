@@ -65,7 +65,6 @@ pub const Battle = struct {
 };
 
 pub fn prng(rand: *PSRNG) data.PRNG {
-    // FIXME: what is max range in gen2?
     return .{
         .src = .{
             .seed = if (showdown)
@@ -87,10 +86,10 @@ pub fn prng(rand: *PSRNG) data.PRNG {
                 var i: u8 = 0;
                 while (i < seed.len) {
                     div = @intCast(timer >> 8);
-                    // need to do this to see if a carry would be generated at all
-                    const check_carry: u16 = @as(u16, add) + @as(u16, div) + @as(u16, carry);
-                    add +%= div +% carry;
-                    carry = if (check_carry > 255) 1 else 0;
+                    // This is effectively @addWithOverflow but with three operands
+                    const result = @as(u16, add) + @as(u16, div) + @as(u16, carry);
+                    add = @intCast(result & 255);
+                    carry = @intFromBool(result > 255);
                     timer +%= 44;
                     div = @intCast(timer >> 8);
                     sub -%= div +% carry;
